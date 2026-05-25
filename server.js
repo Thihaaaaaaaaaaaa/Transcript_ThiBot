@@ -70,7 +70,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
         audio: fs.createReadStream(filePath),
         speaker_labels: true,
         speakers_expected: parseInt(req.body.speakersExpected) || 2,
-        speech_model: 'best',
+        speech_models: 'best',
         language_detection: true,
         punctuate: true,
         format_text: true,
