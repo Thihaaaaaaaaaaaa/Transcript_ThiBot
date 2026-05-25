@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SONIQ — 3D Audio Visualizer & Transcriber</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="bgCanvas"></canvas>
+
+  <header class="header">
+    <div class="logo"><span class="logo-icon">◈</span><span class="logo-text">SONIQ</span></div>
+    <div class="header-tag">3D Audio Intelligence</div>
+  </header>
+
+  <main class="app">
+
+    <!-- ── UPLOAD ── -->
+    <section class="upload-section" id="uploadSection">
+      <div class="upload-card">
+        <div class="upload-visual">
+          <canvas id="idleCanvas" width="320" height="180"></canvas>
+        </div>
+        <h1 class="upload-title">Drop your audio here</h1>
+        <p class="upload-sub">MP3 · WAV · MP4 · M4A · OGG · WebM · FLAC — up to 200 MB</p>
+        <div class="speakers-row">
+          <label class="speakers-label">Expected speakers</label>
+          <div class="speakers-counter">
+            <button class="spk-btn" id="spkMinus">−</button>
+            <span id="spkCount">2</span>
+            <button class="spk-btn" id="spkPlus">+</button>
+          </div>
+        </div>
+        <div class="drop-zone" id="dropZone">
+          <input type="file" id="fileInput" accept="audio/*,video/mp4,video/webm" hidden />
+          <div class="drop-inner">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <path d="M20 8v16M14 18l6 6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 28v2a2 2 0 002 2h20a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span>Click to browse or drag &amp; drop</span>
+          </div>
+        </div>
+        <div class="file-info" id="fileInfo" style="display:none">
+          <span class="file-name" id="fileName"></span>
+          <button class="btn-primary" id="transcribeBtn">Transcribe ◈</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PROCESSING ── -->
+    <section class="processing-section" id="processingSection" style="display:none">
+      <div class="processing-card">
+        <canvas id="processingCanvas" width="400" height="400"></canvas>
+        <h2 class="processing-title">Analyzing audio</h2>
+        <div class="processing-steps">
+          <div class="step" id="step1"><span class="step-dot"></span>Uploading file</div>
+          <div class="step" id="step2"><span class="step-dot"></span>Detecting speakers</div>
+          <div class="step" id="step3"><span class="step-dot"></span>Transcribing with best model</div>
+          <div class="step" id="step4"><span class="step-dot"></span>Scoring word confidence</div>
+        </div>
+        <p class="processing-note">This may take a few minutes for longer recordings</p>
+      </div>
+    </section>
+
+    <!-- ── RESULT ── -->
+    <section class="result-section" id="resultSection" style="display:none">
+
+      <!-- Visualizer -->
+      <div class="visualizer-container">
+        <canvas id="mainCanvas"></canvas>
+        <div class="viz-controls">
+          <button class="viz-btn active" data-mode="bars" title="Bar Spectrum">▐▌</button>
+          <button class="viz-btn" data-mode="wave" title="Waveform">〜</button>
+          <button class="viz-btn" data-mode="sphere" title="3D Sphere">◉</button>
+          <button class="viz-btn" data-mode="radial" title="Radial">✦</button>
+        </div>
+        <div class="audio-controls">
+          <button class="audio-btn" id="playPauseBtn">
+            <svg id="playIcon" width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M7 4l12 7-12 7V4z" fill="currentColor"/></svg>
+            <svg id="pauseIcon" width="22" height="22" viewBox="0 0 22 22" fill="none" style="display:none"><rect x="5" y="4" width="4" height="14" rx="1" fill="currentColor"/><rect x="13" y="4" width="4" height="14" rx="1" fill="currentColor"/></svg>
+          </button>
+          <div class="progress-container">
+            <div class="progress-bar" id="progressBar">
+              <div class="progress-fill" id="progressFill"></div>
+              <div class="progress-thumb" id="progressThumb"></div>
+            </div>
+            <div class="time-row">
+              <span id="currentTime">0:00</span>
+              <span id="totalTime">0:00</span>
+            </div>
+          </div>
+          <div class="volume-row">
+            <span class="vol-icon">🔈</span>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" />
+          </div>
+        </div>
+        <audio id="audioPlayer" style="display:none"></audio>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-bar">
+        <div class="stat"><span class="stat-label">Duration</span><span class="stat-val" id="statDuration">—</span></div>
+        <div class="stat"><span class="stat-label">Speakers</span><span class="stat-val" id="statSpeakers">—</span></div>
+        <div class="stat"><span class="stat-label">Accuracy</span><span class="stat-val" id="statConfidence">—</span></div>
+        <div class="stat"><span class="stat-label">Words</span><span class="stat-val" id="statWords">—</span></div>
+      </div>
+
+      <!-- Two column panels -->
+      <div class="panels-row">
+
+        <!-- LEFT: Review & Edit panel -->
+        <div class="panel review-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2 class="panel-title">Review &amp; Edit</h2>
+              <span class="panel-badge" id="flaggedBadge" style="display:none"></span>
+            </div>
+            <div class="panel-actions">
+              <button class="action-btn accent-btn" id="editSpeakersBtn">
+                <svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M12.5 2.5a2.121 2.121 0 013 3L5 16H2v-3L12.5 2.5z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Speakers
+              </button>
+              <button class="action-btn" id="newBtn">↺ New</button>
+            </div>
+          </div>
+          <div class="confidence-legend">
+            <span class="conf-item"><span class="conf-dot conf-high"></span>High confidence</span>
+            <span class="conf-item"><span class="conf-dot conf-low"></span>Uncertain — click to fix</span>
+          </div>
+          <div class="speaker-legend" id="speakerLegend"></div>
+          <div class="utterances" id="utterances"></div>
+        </div>
+
+        <!-- RIGHT: Copy-Paste Display panel -->
+        <div class="panel copy-panel">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <h2 class="panel-title">Clean Copy</h2>
+              <span class="panel-hint">Ready to copy &amp; paste</span>
+            </div>
+            <div class="panel-actions">
+              <div class="copy-options">
+                <label class="toggle-label"><input type="checkbox" id="cpTimestamps" checked /><span>Timestamps</span></label>
+                <label class="toggle-label"><input type="checkbox" id="cpSpeakers" checked /><span>Names</span></label>
+              </div>
+              <button class="action-btn highlight-btn" id="copyAllBtn">
+                <svg width="15" height="15" viewBox="0 0 18 18" fill="none"><rect x="6" y="6" width="9" height="10" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M4 12H3a1 1 0 01-1-1V3a1 1 0 011-1h8a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                Copy All
+              </button>
+              <button class="action-btn download-trigger-btn" id="downloadTriggerBtn">
+                <svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M9 2v10M5 8l4 4 4-4M3 14h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Download .docx
+              </button>
+            </div>
+          </div>
+          <div class="copy-display" id="copyDisplay"></div>
+        </div>
+
+      </div><!-- /panels-row -->
+    </section>
+  </main>
+
+  <!-- ── SPEAKER EDIT MODAL ── -->
+  <div class="modal-overlay" id="speakerModalOverlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Speaker Names</h3>
+        <button class="modal-close" id="speakerModalClose">✕</button>
+      </div>
+      <p class="modal-sub">Rename detected speakers. Changes apply instantly everywhere.</p>
+      <div class="modal-body" id="speakerModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="speakerModalCancel">Cancel</button>
+        <button class="btn-primary" id="speakerModalSave">Save Names ◈</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DOWNLOAD OPTIONS MODAL ── -->
+  <div class="modal-overlay" id="downloadModalOverlay" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h3 class="modal-title">Download as Word Document</h3>
+        <button class="modal-close" id="downloadModalClose">✕</button>
+      </div>
+      <p class="modal-sub">Choose how your transcript document will be formatted.</p>
+      <div class="modal-body">
+
+        <div class="option-group">
+          <div class="option-group-label">Document Style</div>
+          <div class="style-options">
+            <label class="style-card active" data-style="clean">
+              <input type="radio" name="docStyle" value="clean" checked hidden />
+              <div class="style-preview clean-preview">
+                <div class="sp-speaker">Sarah</div>
+                <div class="sp-text">How did you get to work today?</div>
+                <div class="sp-speaker sp-b">Ben</div>
+                <div class="sp-text">I usually take the bus from…</div>
+              </div>
+              <div class="style-label">Clean</div>
+              <div class="style-desc">Shaded blocks per speaker — journalism style</div>
+            </label>
+            <label class="style-card" data-style="formal">
+              <input type="radio" name="docStyle" value="formal" hidden />
+              <div class="style-preview formal-preview">
+                <div class="fp-name">SARAH</div>
+                <div class="fp-text">How did you get to work today?</div>
+                <div class="fp-name">BEN</div>
+                <div class="fp-text">I usually take the bus from…</div>
+              </div>
+              <div class="style-label">Formal</div>
+              <div class="style-desc">All-caps names, indented — legal / deposition</div>
+            </label>
+            <label class="style-card" data-style="minimal">
+              <input type="radio" name="docStyle" value="minimal" hidden />
+              <div class="style-preview minimal-preview">
+                <div class="mp-line"><span class="mp-name">Sarah:</span> How did you get to work?</div>
+                <div class="mp-line"><span class="mp-name">Ben:</span> I usually take the bus…</div>
+              </div>
+              <div class="style-label">Minimal</div>
+              <div class="style-desc">Plain inline — clean paste into other docs</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="option-group">
+          <div class="option-group-label">Include in Document</div>
+          <div class="toggle-grid">
+            <label class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-name">Timestamps</span>
+                <span class="toggle-desc">Show start/end time for each utterance</span>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="dlTimestamps" checked />
+                <span class="switch-track"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-name">Speaker Labels</span>
+                <span class="toggle-desc">Show speaker names before each utterance</span>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="dlSpeakers" checked />
+                <span class="switch-track"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-name">Confidence Scores</span>
+                <span class="toggle-desc">Mark uncertain words in amber italics</span>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="dlConfidence" />
+                <span class="switch-track"></span>
+              </div>
+            </label>
+            <label class="toggle-row">
+              <div class="toggle-info">
+                <span class="toggle-name">File Metadata</span>
+                <span class="toggle-desc">Cover info: date, duration, accuracy</span>
+              </div>
+              <div class="toggle-switch">
+                <input type="checkbox" id="dlMetadata" checked />
+                <span class="switch-track"></span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="downloadModalCancel">Cancel</button>
+        <button class="btn-primary" id="downloadModalConfirm">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" style="margin-right:6px"><path d="M9 2v10M5 8l4 4 4-4M3 14h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Generate &amp; Download
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── WORD EDIT POPOVER ── -->
+  <div class="word-popover" id="wordPopover" style="display:none">
+    <div class="popover-label">Edit word</div>
+    <input class="popover-input" id="popoverInput" type="text" />
+    <div class="popover-actions">
+      <button class="popover-btn cancel" id="popoverCancel">Cancel</button>
+      <button class="popover-btn save" id="popoverSave">Save</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/bg.js"></script>
+  <script src="js/visualizer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

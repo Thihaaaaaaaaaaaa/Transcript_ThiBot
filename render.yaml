@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: soniq-audio-visualizer
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
